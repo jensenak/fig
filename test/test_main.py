@@ -15,7 +15,7 @@ data = {
     "dev":{
         "app":{
             "name":"myapp",
-        "db_pass": "#REF:/dev/db/password"
+            "db_pass": "#REF:/dev/db/password"
         },
         "db":{
             "password":"thepassword"
@@ -42,6 +42,12 @@ log.setLevel(os.getenv("LOG_LEVEL", "DEBUG"))
 class PCPathError(Exception):
     pass
 
+class PCValueError(Exception):
+    pass
+
+class PCRefError(Exception):
+    pass
+
 def get_val(path, iteration=0):
     '''
     Given a path to a specific value, return that value, after resolving references
@@ -66,12 +72,16 @@ def get_val(path, iteration=0):
             val = tmpdata[key]
     
     try:
+        if isinstance(val, dict):
+            raise PCPathError("Path contains more than one value")
+    except NameError:
+        raise PCValueError("Path does not contain a value")
+
+    try:
         if val[:5] == "#REF:":
             if iteration > iter_limit:
-                raise PCPathError("Too many references")
+                raise PCRefError("Too many references")
             val = get_val(val[5:], iteration+1)
-    except NameError:
-        raise PCPathError("Path does not contain a value")
     except TypeError:
         pass # TypeError happens when val is not a string, so it definitely isn't a ref
     
@@ -83,26 +93,42 @@ def list_path(path):
     '''
     Lists keys under a certain path
     '''
-    pass
+    log.debug(f"list_path called with {path}")
+    prefix = path.split("/")[1:]
+    tmpdata = dict(data)
+    for p in prefix:
+            if p: # Ignore empty fields              
+                tmpdata = tmpdata[p]
 
-def get_path_vals(path):
-    '''
-    Returns values for all keys under a certain path (single level)
-    '''
-    pass
+    return list(tmpdata.keys())
 
-def get_rpath_vals(path):
+def get_path_vals(path, recursive=False):
     '''
-    Returns values for all keys under a certain path (recursive)
+    Returns values for all keys under a certain path (has a recursive option)
+    Debate: Should this flatten the values? Or should it preserve the nested hierarchy somehow?
+    Going with flatten for now... we'll see if that turns out to be a bad call.
     '''
-    pass
+    log.debug(f"get_path_vals called with {path} with recursion set to {recursive}")
+    keys = list_path(path)
+    out = {}
+    for key in keys:
+        try:
+            out[key] = get_val(f"{path}/{key}")
+        except PCPathError:
+            if recursive:
+                for k, v in get_path_vals(f"{path}/{key}", True).items():
+                    out[k] = v
+
+    return out
 
 def test_regular_path_resolution():
     assert get_val("/global") == "one"
     assert get_val("/dev/app/name") == "myapp"
     assert get_val("/qa/app/count") == 10
-    with pytest.raises(PCPathError):
+    with pytest.raises(PCValueError):
         get_val("/qa/app/db_pass")
+    with pytest.raises(PCPathError):
+        get_val("/dev")
 
 def test_path_overlap():
     assert get_val("/dev/app/count") == 7
@@ -116,5 +142,12 @@ def test_reference_overlap():
 
 def test_recursive_refs():
     assert get_val("/prod/app/url") == "www.com"
-    with pytest.raises(PCPathError):
+    with pytest.raises(PCRefError):
         get_val("/too/much/recursion")
+
+def test_list_path():
+    assert list_path("/dev").sort() == ["app","db"].sort()
+
+def test_get_path_vals():
+    assert get_path_vals("/dev/app") == {"name": "myapp", "db_pass": "thepassword"}
+    assert get_path_vals("/dev", recursive=True) == {"name": "myapp", "db_pass": "thepassword", "password": "thepassword"}

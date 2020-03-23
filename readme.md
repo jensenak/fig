@@ -26,3 +26,28 @@ Possible solutions:
   - Prompt users to enter values for a new application?
   - Maybe prompt them to enter values for an existing application that's being updated?
 
+Some thoughts:
+
+This tool definitely has two components.
+
+- A server agent, meant primarily to fetch values for a running process. 
+- A management tool, meant to enable developers to set up configuration.
+
+Server agent:
+
+- Probably should have the ability to start a process
+  - Being the parent of a process allows it to pass environment vars
+  - It would need to pass signals through (such as SIGTERM, SIGSTOP, SIGHUP)
+- Might make sense to have it write files when invoked (maybe as an operating mode)
+- Possibly support writes?
+  - Could enable a service discovery-like functionality where running services can inform others of changing configuration
+
+Management tool:
+
+- Allows set up of a new namespace (just writes a key somewhere)
+- Could maybe support some kind of "template" namespace?
+- Could aid in keeping config DRY
+  - When the same value is set in multiple places, prompt for a higher level setting?
+  - This would probably require a running server, instead of just a cli tool...
+  - ... unless it was a command ... " >> tool dedup /my/namespace"
+- Probably needs import and export modes
