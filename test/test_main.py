@@ -3,15 +3,18 @@ import logging
 import os
 
 data = {
+    # Global values
     "global": "one",
     "count": 7,
     "url": "#REF:/internal/domain",
+    # Values used to test references
     "external":{
         "domain": "www.com"
     },
     "internal":{
         "domain": "dev.internal"
     },
+    # Environment structure tests
     "dev":{
         "app":{
             "name":"myapp",
@@ -33,6 +36,7 @@ data = {
             "url":"#REF:/qa/app/url"
         }
     },
+    # Too much recursion test
     "too":{"much":{"recursion":"#REF:/too/much/recursion"}}
 }
 iter_limit = 5
@@ -102,22 +106,26 @@ def list_path(path):
 
     return list(tmpdata.keys())
 
-def get_path_vals(path, recursive=False):
+def get_path_vals(path, recursive=True):
     '''
-    Returns values for all keys under a certain path (has a recursive option)
-    Debate: Should this flatten the values? Or should it preserve the nested hierarchy somehow?
-    Going with flatten for now... we'll see if that turns out to be a bad call.
+    Returns values for all keys under a certain path (has a non-recursive option to get variables only from this level)
+    May want to have a way to trace the values back to their origins? Maybe a flag for that?
     '''
     log.debug(f"get_path_vals called with {path} with recursion set to {recursive}")
-    keys = list_path(path)
+    
     out = {}
+
+    p = path.split("/")
+    if recursive and len(p) > 1:
+        out = get_path_vals("/".join(p[:-1])) # Ok, obviously it was a poor choice to make the functions work on a string...
+
+    keys = list_path(path)
+
     for key in keys:
         try:
             out[key] = get_val(f"{path}/{key}")
         except PCPathError:
-            if recursive:
-                for k, v in get_path_vals(f"{path}/{key}", True).items():
-                    out[k] = v
+            continue # This error happens when the key contains another level of hierarchy instead of a single value
 
     return out
 
@@ -148,6 +156,9 @@ def test_recursive_refs():
 def test_list_path():
     assert list_path("/dev").sort() == ["app","db"].sort()
 
+def test_get_flat_vals():
+    assert get_path_vals("/dev/app", recursive=False) == {"name": "myapp", "db_pass": "thepassword"}
+
 def test_get_path_vals():
-    assert get_path_vals("/dev/app") == {"name": "myapp", "db_pass": "thepassword"}
-    assert get_path_vals("/dev", recursive=True) == {"name": "myapp", "db_pass": "thepassword", "password": "thepassword"}
+    assert get_path_vals("/dev/app") == {"name": "myapp", "db_pass": "thepassword", "global":"one", "url": "dev.internal", "count":7}
+    assert get_path_vals("/dev") == {"global":"one", "url": "dev.internal", "count":7}
