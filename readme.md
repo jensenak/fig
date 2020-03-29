@@ -1,5 +1,14 @@
 Named Fig because that's both a reference to "config" and a kind of tree.
 
+This tool takes input data in the form a "tree" (similar to a filesystem or a dictionary, really) and generates a flat config file that can be sourced by bash.
+
+To test:
+
+    pip3 install -r requirements.txt
+    python3 -m pytest
+
+
+--- NOTES FROM PLANNING ---
 The goal here is to solve some problems in the configuration space.
 
 Problems:
