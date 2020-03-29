@@ -1,4 +1,4 @@
-Temporarily named "Project C"
+Named Fig because that's both a reference to "config" and a kind of tree.
 
 The goal here is to solve some problems in the configuration space.
 
